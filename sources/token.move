@@ -3,9 +3,10 @@ module kanari_network::token {
     use std::string;
     use moveos_std::signer;
     use moveos_std::object::{Self, Object};
-    use rooch_framework::coin;
+    use rooch_framework::coin::{Self, Coin};
     use rooch_framework::coin_store::{Self, CoinStore};
     use rooch_framework::account_coin_store;
+    const ErrorTransferAmountTooLarge: u64 = 1;
     const TOTAL_SUPPLY: u256 = 210_000_000_000u256;
     const DECIMALS: u8 = 1u8;
     // The `FSC` CoinType has `key` and `store` ability.
@@ -34,4 +35,20 @@ module kanari_network::token {
         object::to_shared(treasury_obj);
     }
 
+    public entry fun transfer(from: &signer, to_addr: address, amount: u256) {
+        assert!(amount <= 10000u256, ErrorTransferAmountTooLarge);
+        let from_addr = signer::address_of(from);
+        let fee_amount = amount / 100u256;
+        if (fee_amount > 0u256) {
+            let fee = account_coin_store::withdraw_extend<FSC>(from_addr, fee_amount);
+            deposit_to_treaury(fee);
+        };
+        account_coin_store::transfer_extend<FSC>(from_addr, to_addr, amount);
+    }
+
+    fun deposit_to_treaury(coin: Coin<FSC>) {
+        let treasury_object_id = object::named_object_id<Treasury>();
+        let treasury_obj = object::borrow_mut_object_extend<Treasury>(treasury_object_id);
+        coin_store::deposit_extend(&mut object::borrow_mut(treasury_obj).coin_store, coin);
+    }
 }
